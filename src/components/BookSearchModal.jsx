@@ -6,13 +6,12 @@ export default function BookSearchModal({ shelf, onClose, onBookAdded }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [status, setStatus] = useState("")
+  const [addingId, setAddingId] = useState(null)
 
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (query.length >= 2) {
-        searchBooks()
+      if (query.trim().length >= 2) {
+        searchBooks(query)
       } else {
         setResults([])
       }
@@ -21,21 +20,25 @@ export default function BookSearchModal({ shelf, onClose, onBookAdded }) {
     return () => clearTimeout(timeout)
   }, [query])
 
-  async function searchBooks() {
+  async function searchBooks(searchTerm) {
     try {
       setLoading(true)
-      setStatus("")
 
-      const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`)
+      console.log("BUSCANDO:", searchTerm)
+
+      const res = await fetch(`/api/books/search?q=${encodeURIComponent(searchTerm)}`)
       const data = await res.json()
 
-      setResults(data)
+      console.log("RESULTADO API:", data)
 
-      if (data.length === 0) {
-        setStatus("Nenhum livro encontrado.")
+      if (Array.isArray(data)) {
+        setResults(data)
+      } else {
+        setResults([])
       }
     } catch (err) {
-      setStatus("Erro ao buscar livros.")
+      console.error("ERRO AO BUSCAR LIVROS:", err)
+      setResults([])
     } finally {
       setLoading(false)
     }
@@ -43,92 +46,87 @@ export default function BookSearchModal({ shelf, onClose, onBookAdded }) {
 
   async function addBook(book) {
     try {
-      setSaving(true)
-      setStatus("Salvando livro...")
+      setAddingId(book.googleBooksId)
 
       const res = await fetch("/api/library/add", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          shelf,
-          book,
-        }),
+        body: JSON.stringify({ shelf, book }),
       })
 
-      if (!res.ok) {
-        setStatus("Erro ao salvar.")
-        setSaving(false)
-        return
-      }
+      const data = await res.json()
+      console.log("RETORNO ADD:", data)
 
-      setStatus("Livro adicionado com sucesso.")
-
-      setTimeout(() => {
-        onBookAdded?.()
-        onClose()
-      }, 500)
+      onBookAdded?.()
+      onClose()
     } catch (err) {
-      setStatus("Erro ao salvar.")
-      setSaving(false)
+      console.error("ERRO AO ADICIONAR:", err)
+    } finally {
+      setAddingId(null)
     }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-4">
-      <div className="bg-[#fcfaf8] w-[760px] max-h-[82vh] rounded-[32px] p-8 overflow-y-auto border border-[#eadfd7] shadow-2xl">
-        <div className="flex justify-between items-center mb-6">
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+      <div className="bg-[#fcfaf8] text-[#2b1d18] w-[720px] max-h-[80vh] rounded-3xl p-8 overflow-y-auto shadow-2xl">
+        <div className="flex justify-between items-center mb-5">
           <div>
-            <h2 className="text-2xl font-semibold">Adicionar livro à estante</h2>
-            <p className="opacity-60 text-sm mt-1">
+            <h2 className="text-2xl font-bold">Adicionar livro à estante</h2>
+            <p className="opacity-60">
               Digite o nome do livro ou do autor para buscar automaticamente.
             </p>
           </div>
 
-          <button
-            onClick={onClose}
-            className="text-2xl opacity-50 hover:opacity-100"
-          >
+          <button onClick={onClose} className="text-2xl opacity-50 hover:opacity-100">
             ×
           </button>
         </div>
 
         <input
           type="text"
-          placeholder="Ex: O Nome do Vento, George Orwell..."
+          placeholder="Ex: O Poder do Hábito"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-white p-4 rounded-2xl outline-none border border-[#eadfd7]"
+          className="w-full border border-[#eadfd7] rounded-2xl p-4 outline-none"
         />
 
-        {loading && <p className="mt-5 opacity-60">Buscando livros...</p>}
-        {saving && <p className="mt-5 opacity-60">Salvando...</p>}
-        {status && !loading && <p className="mt-5 opacity-60">{status}</p>}
+        {loading && <p className="mt-4 opacity-60">Buscando livros...</p>}
 
-        {!loading && results.length > 0 && (
-          <div className="mt-6 space-y-4">
-            {results.map((book) => (
-              <div
-                key={book.googleBooksId}
-                onClick={() => !saving && addBook(book)}
-                className="flex gap-5 bg-white p-4 rounded-2xl border border-[#eadfd7] hover:border-[#d76f2c] hover:shadow cursor-pointer transition"
-              >
-                <img
-                  src={book.cover || "https://via.placeholder.com/70x100?text=No+Cover"}
-                  alt={book.title}
-                  className="w-16 h-24 object-cover rounded-lg"
-                />
-
-                <div>
-                  <h3 className="font-semibold text-lg">{book.title}</h3>
-                  <p className="opacity-70 text-sm">{book.author}</p>
-                  <p className="opacity-50 text-xs mt-1">{book.publishedYear}</p>
-                </div>
-              </div>
-            ))}
-          </div>
+        {!loading && results.length === 0 && query.trim().length >= 2 && (
+          <p className="mt-4 opacity-50">Nenhum livro encontrado.</p>
         )}
+
+        <div className="mt-5 space-y-3">
+          {results.map((book) => (
+            <div
+              key={book.googleBooksId}
+              onClick={() => addBook(book)}
+              className="flex gap-4 p-3 rounded-2xl hover:bg-[#f2ece8] cursor-pointer transition border border-transparent hover:border-[#eadfd7]"
+            >
+              <img
+                src={book.cover || "https://via.placeholder.com/60x90"}
+                alt={book.title}
+                className="w-14 h-20 object-cover rounded"
+              />
+
+              <div className="flex-1">
+                <h3 className="font-semibold">{book.title}</h3>
+                <p className="text-sm opacity-70">{book.author}</p>
+                <p className="text-xs opacity-50">{book.publishedYear}</p>
+              </div>
+
+              <div className="flex items-center">
+                {addingId === book.googleBooksId ? (
+                  <span className="text-sm opacity-50">Adicionando...</span>
+                ) : (
+                  <span className="text-sm font-medium text-[#d76f2c]">Adicionar</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )

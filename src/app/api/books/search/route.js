@@ -9,23 +9,31 @@ export async function GET(req) {
   }
 
   try {
+    console.log("Consultando OpenLibrary:", q)
+
     const res = await fetch(
-      `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=8`
+      `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=8`,
+      {
+        cache: "no-store",
+      }
     )
 
     const data = await res.json()
 
-    const books = (data.items || []).map((item) => ({
-      googleBooksId: item.id,
-      title: item.volumeInfo.title || "Sem título",
-      author: item.volumeInfo.authors?.join(", ") || "Autor desconhecido",
-      cover: item.volumeInfo.imageLinks?.thumbnail || null,
-      description: item.volumeInfo.description || "",
-      publishedYear: item.volumeInfo.publishedDate || "",
+    const books = (data.docs || []).map((item) => ({
+      googleBooksId: item.key,
+      title: item.title || "Sem título",
+      author: item.author_name?.join(", ") || "Autor desconhecido",
+      cover: item.cover_i
+        ? `https://covers.openlibrary.org/b/id/${item.cover_i}-L.jpg`
+        : null,
+      description: "",
+      publishedYear: item.first_publish_year || "",
     }))
 
     return NextResponse.json(books)
   } catch (error) {
+    console.log("ERRO OPENLIBRARY:", error)
     return NextResponse.json([])
   }
 }

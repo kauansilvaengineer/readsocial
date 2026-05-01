@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { prisma } from "../../../../lib/prisma"
+import { auth } from "../../../../lib/auth"
 
 export async function POST(req) {
   try {
@@ -13,14 +13,8 @@ export async function POST(req) {
     const body = await req.json()
     const { shelf, book } = body
 
-    if (!shelf || !book?.googleBooksId) {
-      return NextResponse.json({ error: "Dados inválidos" }, { status: 400 })
-    }
-
     const user = await prisma.user.findUnique({
-      where: {
-        email: session.user.email,
-      },
+      where: { email: session.user.email },
     })
 
     if (!user) {
@@ -28,9 +22,7 @@ export async function POST(req) {
     }
 
     let existingBook = await prisma.book.findUnique({
-      where: {
-        googleBooksId: book.googleBooksId,
-      },
+      where: { googleBooksId: book.googleBooksId },
     })
 
     if (!existingBook) {
@@ -41,18 +33,19 @@ export async function POST(req) {
           author: book.author,
           cover: book.cover,
           description: book.description,
+          publishedYear: String(book.publishedYear || ""),
         },
       })
     }
 
-    const userBook = await prisma.userBook.findFirst({
+    const alreadyExists = await prisma.userBook.findFirst({
       where: {
         userId: user.id,
         bookId: existingBook.id,
       },
     })
 
-    if (!userBook) {
+    if (!alreadyExists) {
       await prisma.userBook.create({
         data: {
           userId: user.id,
@@ -60,20 +53,11 @@ export async function POST(req) {
           shelf,
         },
       })
-    } else {
-      await prisma.userBook.update({
-        where: {
-          id: userBook.id,
-        },
-        data: {
-          shelf,
-        },
-      })
     }
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    console.log(error)
+    console.log("ERRO AO ADICIONAR LIVRO:", error)
     return NextResponse.json({ error: "Erro interno" }, { status: 500 })
   }
 }
