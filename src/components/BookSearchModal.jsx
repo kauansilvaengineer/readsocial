@@ -6,6 +6,8 @@ export default function BookSearchModal({ shelf, onClose, onBookAdded }) {
   const [query, setQuery] = useState("")
   const [results, setResults] = useState([])
   const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [status, setStatus] = useState("")
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -14,74 +16,119 @@ export default function BookSearchModal({ shelf, onClose, onBookAdded }) {
       } else {
         setResults([])
       }
-    }, 400)
+    }, 500)
 
     return () => clearTimeout(timeout)
   }, [query])
 
   async function searchBooks() {
-    setLoading(true)
-    const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`)
-    const data = await res.json()
-    setResults(data)
-    setLoading(false)
+    try {
+      setLoading(true)
+      setStatus("")
+
+      const res = await fetch(`/api/books/search?q=${encodeURIComponent(query)}`)
+      const data = await res.json()
+
+      setResults(data)
+
+      if (data.length === 0) {
+        setStatus("Nenhum livro encontrado.")
+      }
+    } catch (err) {
+      setStatus("Erro ao buscar livros.")
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function addBook(book) {
-    await fetch("/api/library/add", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        shelf,
-        book,
-      }),
-    })
+    try {
+      setSaving(true)
+      setStatus("Salvando livro...")
 
-    onBookAdded?.()
-    onClose()
+      const res = await fetch("/api/library/add", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          shelf,
+          book,
+        }),
+      })
+
+      if (!res.ok) {
+        setStatus("Erro ao salvar.")
+        setSaving(false)
+        return
+      }
+
+      setStatus("Livro adicionado com sucesso.")
+
+      setTimeout(() => {
+        onBookAdded?.()
+        onClose()
+      }, 500)
+    } catch (err) {
+      setStatus("Erro ao salvar.")
+      setSaving(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
-      <div className="bg-zinc-900 w-[700px] max-h-[80vh] rounded-2xl p-6 overflow-y-auto border border-zinc-700">
-        <div className="flex justify-between items-center mb-5">
-          <h2 className="text-xl font-bold text-white">Adicionar livro</h2>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white">✕</button>
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center px-4">
+      <div className="bg-[#fcfaf8] w-[760px] max-h-[82vh] rounded-[32px] p-8 overflow-y-auto border border-[#eadfd7] shadow-2xl">
+        <div className="flex justify-between items-center mb-6">
+          <div>
+            <h2 className="text-2xl font-semibold">Adicionar livro à estante</h2>
+            <p className="opacity-60 text-sm mt-1">
+              Digite o nome do livro ou do autor para buscar automaticamente.
+            </p>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="text-2xl opacity-50 hover:opacity-100"
+          >
+            ×
+          </button>
         </div>
 
         <input
           type="text"
-          placeholder="Digite nome do livro ou autor..."
+          placeholder="Ex: O Nome do Vento, George Orwell..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-zinc-800 text-white p-3 rounded-xl outline-none border border-zinc-700"
+          className="w-full bg-white p-4 rounded-2xl outline-none border border-[#eadfd7]"
         />
 
-        {loading && <p className="text-zinc-400 mt-4">Buscando livros...</p>}
+        {loading && <p className="mt-5 opacity-60">Buscando livros...</p>}
+        {saving && <p className="mt-5 opacity-60">Salvando...</p>}
+        {status && !loading && <p className="mt-5 opacity-60">{status}</p>}
 
-        <div className="mt-5 space-y-3">
-          {results.map((book) => (
-            <div
-              key={book.googleBooksId}
-              className="flex gap-4 bg-zinc-800 p-3 rounded-xl hover:bg-zinc-700 cursor-pointer"
-              onClick={() => addBook(book)}
-            >
-              <img
-                src={book.cover || "https://via.placeholder.com/60x90?text=No+Cover"}
-                alt={book.title}
-                className="w-14 h-20 object-cover rounded"
-              />
+        {!loading && results.length > 0 && (
+          <div className="mt-6 space-y-4">
+            {results.map((book) => (
+              <div
+                key={book.googleBooksId}
+                onClick={() => !saving && addBook(book)}
+                className="flex gap-5 bg-white p-4 rounded-2xl border border-[#eadfd7] hover:border-[#d76f2c] hover:shadow cursor-pointer transition"
+              >
+                <img
+                  src={book.cover || "https://via.placeholder.com/70x100?text=No+Cover"}
+                  alt={book.title}
+                  className="w-16 h-24 object-cover rounded-lg"
+                />
 
-              <div>
-                <h3 className="text-white font-semibold">{book.title}</h3>
-                <p className="text-zinc-400 text-sm">{book.author}</p>
-                <p className="text-zinc-500 text-xs">{book.publishedYear}</p>
+                <div>
+                  <h3 className="font-semibold text-lg">{book.title}</h3>
+                  <p className="opacity-70 text-sm">{book.author}</p>
+                  <p className="opacity-50 text-xs mt-1">{book.publishedYear}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

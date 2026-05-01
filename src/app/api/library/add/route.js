@@ -13,8 +13,14 @@ export async function POST(req) {
     const body = await req.json()
     const { shelf, book } = body
 
+    if (!shelf || !book?.googleBooksId) {
+      return NextResponse.json({ error: "Dados inválidos" }, { status: 400 })
+    }
+
     const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
+      where: {
+        email: session.user.email,
+      },
     })
 
     if (!user) {
@@ -22,7 +28,9 @@ export async function POST(req) {
     }
 
     let existingBook = await prisma.book.findUnique({
-      where: { googleBooksId: book.googleBooksId },
+      where: {
+        googleBooksId: book.googleBooksId,
+      },
     })
 
     if (!existingBook) {
@@ -37,18 +45,27 @@ export async function POST(req) {
       })
     }
 
-    const alreadyInShelf = await prisma.userBook.findFirst({
+    const userBook = await prisma.userBook.findFirst({
       where: {
         userId: user.id,
         bookId: existingBook.id,
       },
     })
 
-    if (!alreadyInShelf) {
+    if (!userBook) {
       await prisma.userBook.create({
         data: {
           userId: user.id,
           bookId: existingBook.id,
+          shelf,
+        },
+      })
+    } else {
+      await prisma.userBook.update({
+        where: {
+          id: userBook.id,
+        },
+        data: {
           shelf,
         },
       })

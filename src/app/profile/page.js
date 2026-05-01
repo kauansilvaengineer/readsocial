@@ -1,7 +1,7 @@
 import Sidebar from "../../components/Sidebar"
 import RightPanel from "../../components/RightPanel"
-import { prisma } from "@/lib/prisma"
-import { auth } from "@/lib/auth"
+import { prisma } from "../../lib/prisma"
+import { auth } from "../../lib/auth"
 import ProfileClient from "../../components/ProfileClient"
 
 export default async function ProfilePage() {
